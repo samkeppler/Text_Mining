@@ -1,0 +1,248 @@
+	
+import pandas as pd
+from sklearn.metrics import ConfusionMatrixDisplay, classification_report
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+#load dataset
+df = pd.read_pickle("pop_songs_with_topics.pkl")
+
+#join tokens into strings
+df['text'] = df['tokens'].apply(lambda tokens: " ".join(tokens))
+
+#split dataset
+from sklearn.model_selection import train_test_split
+
+X = df['text']
+y = df['topic']  # human-readable topic label
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+#TF-IDF vectorization
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2))
+X_train_vec = vectorizer.fit_transform(X_train)
+X_test_vec = vectorizer.transform(X_test)
+In the literature review, I found an article that had success with logistic regression and Random Forest. Let's try logistic regression first.
+
+#train logistic regression
+from sklearn.linear_model import LogisticRegression
+
+log_reg = LogisticRegression(max_iter=1000, random_state=42)
+log_reg.fit(X_train_vec, y_train)
+
+  LogisticRegression?i
+LogisticRegression(max_iter=1000, random_state=42)
+
+#evaluate performance
+from sklearn.metrics import classification_report
+
+y_pred = log_reg.predict(X_test_vec)
+print(classification_report(y_test, y_pred))
+                    )
+ConfusionMatrixDisplay.from_estimator(
+    log_reg,
+    X_test_vec,
+    y_test,
+    colorbar=False,
+    xticks_rotation=90,
+    normalize="true",
+    values_format=".2f",
+    text_kw=dict(fontsize="x-small"),
+)
+
+plt.show()
+
+#For this classifer, I got an F1 macro score of 0.70. I think I can do better. I will try Random Forest now.
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import classification_report
+
+param_grid = {
+    'n_estimators': [50, 100],
+    'max_depth': [None, 10, 20]
+}
+
+grid = GridSearchCV(RandomForestClassifier(random_state=42), param_grid, cv=3, n_jobs=-1)
+grid.fit(X_train_vec, y_train)
+
+random_forest = grid.best_estimator_
+y_pred = random_forest.predict(X_test_vec)
+
+print("Best parameters:", grid.best_params_)
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+ConfusionMatrixDisplay.from_estimator(
+    random_forest,
+    X_test_vec,
+    y_test,
+    colorbar=False,
+    xticks_rotation=90,
+    normalize="true",
+    values_format=".2f",
+    text_kw=dict(fontsize="x-small"),
+)
+
+plt.show()
+
+#That performed worse than the logistic regression. I'm now going to try Linear SVC.
+
+from sklearn.svm import LinearSVC
+
+param_grid = {
+    'C': [0.01, 0.1, 1, 10]
+}
+
+grid = GridSearchCV(LinearSVC(), param_grid, cv=5, n_jobs=-1)
+grid.fit(X_train_vec, y_train)
+
+linear_svc = grid.best_estimator_
+y_pred = linear_svc.predict(X_test_vec)
+
+print("Best parameters:", grid.best_params_)
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+ConfusionMatrixDisplay.from_estimator(
+    linear_svc,
+    X_test_vec,
+    y_test,
+    colorbar=False,
+    xticks_rotation=90,
+    normalize="true",
+    values_format=".2f",
+    text_kw=dict(fontsize="x-small"),
+)
+
+plt.show()
+
+#That looks great. I want to try MultinomialNB now.
+
+from sklearn.naive_bayes import MultinomialNB
+
+param_grid = {
+    'alpha': [0.1, 0.5, 1.0]
+}
+
+grid = GridSearchCV(MultinomialNB(), param_grid, cv=5, n_jobs=-1)
+grid.fit(X_train_vec, y_train)
+
+mnb = grid.best_estimator_
+y_pred = mnb.predict(X_test_vec)
+
+print("Best parameters:", grid.best_params_)
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+       
+ConfusionMatrixDisplay.from_estimator(
+    mnb,
+    X_test_vec,
+    y_test,
+    colorbar=False,
+    xticks_rotation=90,
+    normalize="true",
+    values_format=".2f",
+    text_kw=dict(fontsize="x-small"),
+)
+
+plt.show()
+
+#Now, I'll try an SVC classifier.
+
+from sklearn.svm import SVC
+
+param_grid = {
+    'C': [0.1, 1, 10],
+    'kernel': ['linear', 'rbf']  # trying both linear and nonlinear
+}
+
+grid = GridSearchCV(SVC(), param_grid, cv=3, n_jobs=-1)
+grid.fit(X_train_vec, y_train)
+
+svc = grid.best_estimator_
+y_pred = svc.predict(X_test_vec)
+
+print("Best parameters:", grid.best_params_)
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+ConfusionMatrixDisplay.from_estimator(
+    svc,
+    X_test_vec,
+    y_test,
+    colorbar=False,
+    xticks_rotation=90,
+    normalize="true",
+    values_format=".2f",
+    text_kw=dict(fontsize="x-small"),
+)
+
+plt.show()
+
+#And finally, I'll try the SGD Classifier.
+
+from sklearn.linear_model import SGDClassifier
+
+param_grid = {
+    'loss': ['hinge', 'log_loss'],      # SVM vs. logistic
+    'alpha': [1e-4, 1e-3, 1e-2],        # Regularization strength
+    'penalty': ['l2', 'l1']             # Type of regularization
+}
+
+grid = GridSearchCV(SGDClassifier(max_iter=1000, random_state=42), param_grid, cv=5, n_jobs=-1)
+grid.fit(X_train_vec, y_train)
+
+sgd = grid.best_estimator_
+y_pred = sgd.predict(X_test_vec)
+
+print("Best parameters:", grid.best_params_)
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+ConfusionMatrixDisplay.from_estimator(
+    sgd,
+    X_test_vec,
+    y_test,
+    colorbar=False,
+    xticks_rotation=90,
+    normalize="true",
+    values_format=".2f",
+    text_kw=dict(fontsize="x-small"),
+)
+
+plt.show()
+
+#Our best classifiers are the LinearSVC classifier and SGDClassifier. Now, I want a list of the 10 most important words per topic according to those two classifiers.
+
+import numpy as np
+
+#select linear_svc model
+clf = linear_svc
+
+# get list of topic labels and TF-IDF feature names
+labels = clf.classes_
+feature_names = vectorizer.get_feature_names_out()
+
+# for each topic, show top 10 most important words
+for i, label in enumerate(labels):
+    top_indices = np.argsort(clf.coef_[i])[::-1][:10]
+    top_features = [feature_names[j] for j in top_indices]
+    print(f"{label:<25} → {' | '.join(top_features)}")
+
+#select SGDClassifier model
+clf = sgd
+
+# get list of topic labels and TF-IDF feature names
+labels = clf.classes_
+feature_names = vectorizer.get_feature_names_out()
+
+# for each topic, show top 10 most important words
+for i, label in enumerate(labels):
+    top_indices = np.argsort(clf.coef_[i])[::-1][:10]
+    top_features = [feature_names[j] for j in top_indices]
+    print(f"{label:<25} → {' | '.join(top_features)}")
+
+#Those both look pretty consistent with the topic labels.
