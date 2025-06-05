@@ -1,0 +1,136 @@
+	
+pip install spacy
+python -m spacy download en_core_web_sm
+
+df = pd.read_csv("pop_songs_dataset.csv", engine="python")
+import spacy
+from spacy.matcher import Matcher
+from tqdm import tqdm
+
+# load English model (no parser to speed up)
+nlp = spacy.load("en_core_web_sm", exclude=["parser", "lemmatizer", "ner"])
+
+# define matcher
+matcher = Matcher(nlp.vocab)
+
+# add pattern: (Adj|Noun)+ Noun
+pattern = [
+    {"TAG": {"IN": ["JJ", "NN", "NNS", "NNP"]}, "OP": "*"},
+    {"TAG": {"IN": ["NN", "NNS", "NNP"]}}
+]
+matcher.add("MWE", [pattern])
+
+# phrase extraction function
+def get_phrases(doc):
+    spans = matcher(doc, as_spans=True)
+    return [tuple(tok.norm_ for tok in span) for span in spans]
+
+# apply to lyrics
+tqdm.pandas()
+df['multiword_phrases'] = list(map(get_phrases, nlp.pipe(tqdm(df['text']), batch_size=100)))
+
+from collections import Counter
+from cytoolz import concat
+
+# only keep multi-word expressions (length > 1)
+mwe_counts = Counter(phrase for phrase in concat(df['multiword_phrases']) if len(phrase) > 1)
+
+# show top 20
+top_mwes = mwe_counts.most_common(20)
+for phrase, freq in top_mwes:
+    print(" ".join(phrase), f"→ {freq}")
+
+#There are a lot of phrases that are rhythmic filler (o, la la, pum pum, etc). Let's try to filter those out
+
+def is_clean_phrase(phrase):
+    joined = " ".join(phrase)
+    # remove if it contains many dashes or short fragments
+    if '-' in joined and joined.count('-') > 1:
+        return False
+    if all(len(token) <= 2 for token in phrase):
+        return False
+    return True
+
+# apply filter
+cleaned_mwes = [
+    (phrase, freq) for phrase, freq in mwe_counts.items()
+    if 2 <= len(phrase) <= 4 and is_clean_phrase(phrase)
+]
+cleaned_mwes = sorted(cleaned_mwes, key=lambda x: -x[1])  # sort by frequency
+top_cleaned = sorted(cleaned_mwes, key=lambda x: -x[1])[:20]
+
+for phrase, freq in top_cleaned:
+    print(" ".join(phrase), f"→ {freq}")
+
+import spacy
+from spacy.pipeline import EntityRuler
+
+nlp = spacy.blank("en")
+ruler = nlp.add_pipe("entity_ruler")
+
+# convert cleaned MWEs into spaCy patterns
+patterns = [
+    {
+        "label": "MWE",
+        "pattern": [{"LOWER": word} for word in phrase]
+    }
+    for phrase, _ in cleaned_mwes
+    if len(phrase) > 1  # still exclude single-word phrases
+]
+
+ruler.add_patterns(patterns)
+nlp.to_disk("mwt")
+#add a 'tokens' column to the dataset
+
+# load the saved tokenizer
+mwt = spacy.load("mwt")
+tqdm.pandas()
+
+# tokenize each lyric, merging multi-word expressions
+def tokenize_with_mwt(doc):
+    return [token.text for token in doc]
+
+# Apply to df['text']
+df['tokens'] = list(mwt.pipe(tqdm(df['text']), batch_size=100))
+df['tokens'] = df['tokens'].apply(tokenize_with_mwt)
+
+# remove punctuation and one character tokens
+def remove_punctuation(tokens):
+    punctuation = {'...', ' ', '-', ',', '?', '.', ':', '"'}
+    return [token for token in tokens if token not in punctuation and len(token) > 1]
+
+df['tokens'] = df['tokens'].apply(remove_punctuation)
+
+pip install nltk
+
+# remove common filler words
+import nltk
+nltk.download('stopwords')
+
+# Define stopwords
+stopwords = set(stopwords.words('english'))
+
+def remove_stopwords(tokens):
+    return [token for token in tokens if token.lower() not in stopwords]
+
+# Apply the function to the tokens column
+df['tokens'] = df['tokens'].apply(remove_stopwords)
+
+# fix broken contractions
+stop_tokens = {"'s", "n't", "'m", "'re", "'ve", "'ll", "'d", "'"}
+df['tokens'] = df['tokens'].apply(lambda tokens: [t for t in tokens if t not in stop_tokens])
+
+# make everything lowercase
+df['tokens'] = df['tokens'].apply(lambda tokens: [t.lower() for t in tokens])
+
+# remove proper nouns
+import spacy
+nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
+
+def remove_proper_nouns(tokens):
+    doc = nlp(" ".join(tokens))
+    return [token.text for token in doc if token.pos_ != "PROPN"]
+
+df['tokens'] = df['tokens'].apply(remove_proper_nouns)
+
+df.to_pickle("pop_tokens_cleaned.pkl")
