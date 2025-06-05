@@ -1,0 +1,188 @@
+	
+pip install gensim
+pip install tomotopy
+
+import pandas as pd
+import tomotopy as tp
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.spatial import distance
+from sklearn.manifold import MDS, TSNE
+from textwrap import fill
+
+# load dataset
+df = pd.read_pickle("pop_songs_dataset.pkl")
+
+# hyperparameters
+k = 17 # used trial and error to narrow down to this number with variation but no overlap
+min_df = 5
+rm_top = 5
+tw = tp.TermWeight.IDF
+alpha = 0.1
+eta = 0.01
+tol = 1e-4
+token_column = 'tokens'
+
+# initialize model
+mdl = tp.LDAModel(k=k, min_df=min_df, rm_top=rm_top, tw=tw, alpha=alpha, eta=eta)
+
+# add documents
+for doc in df[token_column]:
+    if doc:
+        mdl.add_doc(doc)
+
+# train
+mdl.train(0)
+last = mdl.ll_per_word
+print(f"{0:5d} LL = {last:8.4f}", flush=True)
+
+for i in range(50, 5000, 50):
+    mdl.train(50, workers=2)
+    ll = mdl.ll_per_word
+    print(f"{i:5d} LL = {ll:8.4f}", flush=True)
+    if ll - last < tol:
+        break
+    else:
+        last = ll
+
+print("Done!")
+  
+# visualize topics
+
+import matplotlib.pyplot as plt
+from scipy.spatial import distance
+from sklearn.manifold import MDS, TSNE
+
+
+def plot_topics(mdl, method="tsne", figsize=7):
+
+    fig = plt.figure(figsize=(figsize, figsize))
+
+    # x, y coords
+    term_topics_dist = np.stack([mdl.get_topic_word_dist(k) for k in range(mdl.k)])
+    if method == "mds":
+        dist = distance.squareform(distance.pdist(term_topics_dist, "jensenshannon"))
+        coords = MDS(2, dissimilarity="precomputed").fit_transform(dist)
+    elif method == "tsne":
+        if mdl.k <= 20:
+            p = mdl.k - 1
+        else:
+            p = 20
+        coords = TSNE(
+            2,
+            metric=distance.jensenshannon,
+            perplexity=p,
+            init="pca",
+            learning_rate="auto",
+            n_jobs=-1,
+        ).fit_transform(term_topics_dist)
+    else:
+        raise ValueError(f"Method {method} unknown")
+
+    # size of the circle
+    doc_topic_dists = np.stack([doc.get_topic_dist() for doc in mdl.docs])
+    doc_lengths = np.array([len(doc.words) for doc in mdl.docs])
+    words_per_topic = np.dot(doc_topic_dists.T, doc_lengths)
+    topic_percent = words_per_topic / words_per_topic.sum()
+    sizes = topic_percent * (figsize * fig.dpi) * (figsize * fig.dpi) * (0.25 / 3.14)
+
+    # draw it
+    plt.scatter(coords[:, 0], coords[:, 1], s=sizes, alpha=0.3)
+    for i in range(mdl.k):
+        plt.text(coords[i, 0], coords[i, 1], i, ha="center", va="center")
+        plt.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+plot_topics(mdl, method="tsne")
+No description has been provided for this image
+# top words for each topic 
+
+for k in range(mdl.k):
+    print(fill(' '.join(s for s, _ in mdl.get_topic_words(k, 50)),
+               initial_indent=f'{k:<5d}',
+               subsequent_indent='     ',
+               width=100))
+    print()
+
+#create a labels.csv file
+
+topic_words = [[x for x, _ in mdl.get_topic_words(i)] for i in range(mdl.k)]
+topics = pd.DataFrame(
+    {
+        "label": [x[0].upper() for x in topic_words],
+        "words": [", ".join(x) for x in topic_words],
+    }
+)
+topics.to_csv("labels.csv", index=False)
+#After adjusting labels in the CSV, these are the names of my topics that are common in pop music:
+
+#EMOTIONAL_CONFLICT
+#PARTY
+#SEDUCTION_CLUB
+#DARK_SUPERNATURAL
+#GOSPEL_PRAISE
+#NONSENSICAL_SOUNDS
+#ROMANTIC_PASSION
+#LOVE_DREAMS
+#HOLIDAY
+#SPIRITUAL_EXISTENTIAL
+#PLAYFUL_FLIRTATION
+#DANCE_ENERGY
+#JUDGMENT
+#TOXICITY_REGRET
+#POP_PERSONA
+#EXPLETIVES
+#SURREAL_IMAGERY
+
+#Going back to the visualizations, the more prominent topics in this dataset appear to be: 10. PLAYFUL_FLIRTATION, 15. EXPLETIVES, and 7. LOVE_DREAMS
+
+#Let's make a new column in the dataset called 'topic' that lists each song's most probable topic so we can use that for future analyses.
+
+#investigate distribution of topics to verify
+df['topic'].value_counts()
+
+#assign most probable topic index using np.argmax
+df['topic'] = [int(np.argmax(doc.get_topic_dist())) for doc in mdl.docs]
+
+#load labels.csv and get topic labels
+labels = pd.read_csv("labels.csv")  # Assumes column 'label' exists
+topic_labels = labels['label'].tolist()
+
+#replace topic index with label
+df['topic'] = df['topic'].apply(lambda i: topic_labels[i])
+
+print(df[['topic']].head())
+
+#I also want to create a column with the topic keywords from above, so we can preserve the semantic meaning of each topic label.
+
+topic_labels = [
+    "EMOTIONAL_CONFLICT",
+    "PARTY",
+    "SEDUCTION_CLUB",
+    "DARK_SUPERNATURAL",
+    "GOSPEL_PRAISE",
+    "NONSENSICAL_SOUNDS",
+    "ROMANTIC_PASSION",
+    "LOVE_DREAMS",
+    "HOLIDAY",
+    "SPIRITUAL_EXISTENTIAL",
+    "PLAYFUL_FLIRTATION",
+    "DANCE_ENERGY",
+    "JUDGMENT",
+    "TOXICITY_REGRET",
+    "POP_PERSONA",
+    "EXPLETIVES",
+    "SURREAL_IMAGERY"
+
+topic_id_to_label = {i: label for i, label in enumerate(topic_labels)}
+label_to_topic_id = {label: i for i, label in enumerate(topic_labels)}
+def get_keywords(label, top_n=50):
+    topic_id = label_to_topic_id.get(label)
+    if topic_id is not None:
+        words = [word for word, _ in mdl.get_topic_words(topic_id, top_n=top_n)]
+        return " ".join(words)
+    return ""
+
+df['topic_keywords'] = df['topic'].apply(get_keywords)
+print(df[['topic_keywords']].head())
+                                      
+df.to_csv("pop_songs_with_topics.csv", index=False)
+df.to_pickle("pop_songs_with_topics.pkl")
