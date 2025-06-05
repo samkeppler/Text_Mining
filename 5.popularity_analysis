@@ -1,0 +1,334 @@
+	
+#I'm going to start with the first relevant, non-text column in my dataframe: 'key'.
+
+import pandas as pd
+df = pd.read_pickle("pop_songs_with_topics.pkl")
+print(df['key'].describe())
+print(df['key'].dtype)
+
+
+key_avg = df.groupby('key')['popularity'].agg(['mean', 'count']).sort_values('mean', ascending=False)
+print(key_avg)
+
+#Major keys tend to evoke more position emotions while minor keys tend to evoke negative emotions. It's interesting that there's not a consistent pattern here (ex. major keys on the top of the list, minor keys on the bottom). I would say there isn't necessarily a trend here and we can move on to the next column: tempo.
+
+print(df['tempo'].describe())
+print(df['tempo'].dtype)
+
+corr = df['tempo'].corr(df['popularity'])
+print(f"Correlation between tempo and popularity: {corr:.3f}")
+
+#This slightly positive value suggests that faster songs tend to be slightly more popular.
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['tempo'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Tempo vs. Popularity')
+plt.xlabel('Tempo')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#There is no clear trend here, indicating that tempo doesn't strongly predict poularity in this dataset. Let's look at loudness.
+
+print(df['loudness'].describe())
+print(df['loudness'].dtype)
+
+corr = df['loudness'].corr(df['popularity'])
+print(f"Correlation between loudness and popularity: {corr:.3f}")
+
+#This indicates that louder songs tend to be slightly more popular.
+
+#scatter plot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['loudness'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Loudness vs. Popularity')
+plt.xlabel('Loudness (normalized)')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#It appears that loudness alone does not predict popularity well. However, because most songs cluster in the louder range (0.7-0.85 db), I assume that it's an industry standard to create songs in this range. Let's look at energy next.
+
+print(df['energy'].describe())
+print(df['energy'].dtype)
+
+corr = df['energy'].corr(df['popularity'])
+print(f"Correlation between energy and popularity: {corr:.3f}")
+
+#Interestingly, this suggests that popular songs are slightly less energetic.
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['energy'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Energy vs. Popularity')
+plt.xlabel('Energy')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#However, once again, no clear trend. Let's move on to danceability.
+corr = df['danceability'].corr(df['popularity'])
+print(f"Correlation between danceability and popularity: {corr:.3f}")
+
+#This suggests that popular songs are more danceable than not.
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['danceability'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Danceability vs. Popularity')
+plt.xlabel('Danceability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#No clear trend. Let's try positiveness.
+
+corr = df['positiveness'].corr(df['popularity'])
+print(f"Correlation between positiveness and popularity: {corr:.3f}")
+
+#Interesting to get a value of exactly 0. I'll make the scatter plot anyways.
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['positiveness'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Positiveness vs. Popularity')
+plt.xlabel('Positiveness')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#Now: speechiness
+corr = df['speechiness'].corr(df['popularity'])
+print(f"Correlation between speechiness and popularity: {corr:.3f}")
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['positiveness'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Positiveness vs. Popularity')
+plt.xlabel('Positiveness')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#Liveliness:
+corr = df['liveliness'].corr(df['popularity'])
+print(f"Correlation between liveliness and popularity: {corr:.3f}")
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['liveliness'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Liveliness vs. Popularity')
+plt.xlabel('Liveliness')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#This effect is similar to loudness, where we can see that most songs tend to be made in a certain range. However, this is not related to popularity at all. Now to the next column: acousticness.
+
+corr = df['acousticness'].corr(df['popularity'])
+print(f"Correlation between acousticness and popularity: {corr:.3f}")
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['acousticness'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Acousticness vs. Popularity')
+plt.xlabel('Acousticness')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#This may be a bimodal distribution, with pop songs tending to be either very acoustic or very electronic. Now: instrumentalness
+
+corr = df['instrumentalness'].corr(df['popularity'])
+print(f"Correlation between instrumentalness and popularity: {corr:.3f}")
+
+#scatterplot
+plt.figure(figsize=(8, 5))
+plt.scatter(df['instrumentalness'], df['popularity'], alpha=0.3, color='slateblue')
+plt.title('Instrumentalness vs. Popularity')
+plt.xlabel('Instrumentalness')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#Looks like most pop songs are considered to have low instrumentalness. Now we have a last group of categories, which are binary. I'll start with good_for_party.
+
+party_avg = df.groupby('good_for_party')['popularity'].agg(['mean', 'count'])
+print(party_avg)
+
+import seaborn as sns
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_party', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Party', 'Party'])
+plt.title('Popularity by Party Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#It seems like pop songs that are good for parties are more popular. Let's confirm this is significant with a t-test.
+
+from scipy.stats import ttest_ind
+
+party = df[df['good_for_party'] == 1]['popularity']
+non_party = df[df['good_for_party'] == 0]['popularity']
+
+t_stat, p_val = ttest_ind(party, non_party, equal_var=False)
+print(f"T-test p-value: {p_val:.4f}")
+
+#It's significant! Now onto good_for_work/study.
+
+workstudy_avg = df.groupby('good_for_work/study')['popularity'].agg(['mean', 'count'])
+print(workstudy_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_work/study', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Work/Study', 'Work/Study'])
+plt.title('Popularity by Work/Study Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+workstudy = df[df['good_for_work/study'] == 1]['popularity']
+non_workstudy = df[df['good_for_work/study'] == 0]['popularity']
+
+t_stat, p_val = ttest_ind(workstudy, non_workstudy, equal_var=False)
+print(f"T-test p-value: {p_val:.4f}")
+
+#Doesn't look like a significant effect, but it is. Songs that are good for work/study are less popular. Let's try good_for relaxation/meditation.
+
+relaxationmeditation_avg = df.groupby('good_for_relaxation/meditation')['popularity'].agg(['mean', 'count'])
+print(relaxationmeditation_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_relaxation/meditation', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Relaxation/Meditation', 'Relaxation/Meditation'])
+plt.title('Popularity by Relaxation/Meditation Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+relaxationmeditation = df[df['good_for_relaxation/meditation'] == 1]['popularity']
+non_relaxationmeditation = df[df['good_for_relaxation/meditation'] == 0]['popularity']
+
+t_stat, p_val = ttest_ind(relaxationmeditation, non_relaxationmeditation, equal_var=False)
+print(f"T-test p-value: {p_val:.4f}")
+
+#Songs that are NOT suited for relaxation/meditation are significantly more popular. Now: good_for_exercise.
+
+exercise_avg = df.groupby('good_for_exercise')['popularity'].agg(['mean', 'count'])
+print(exercise_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_exercise', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Exercise', 'Exercise'])
+plt.title('Popularity by Exercise Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#The effect is not significant. I'll try good_for_running, even though I assume results will be similar to good_for_exercise.
+
+running_avg = df.groupby('good_for_running')['popularity'].agg(['mean', 'count'])
+print(running_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_running', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Running', 'Running'])
+plt.title('Popularity by Running Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+running = df[df['good_for_running'] == 1]['popularity']
+non_running = df[df['good_for_running'] == 0]['popularity']
+
+t_stat, p_val = ttest_ind(running, non_running, equal_var=False)
+print(f"T-test p-value: {p_val:.4f}")
+
+#Interesting, the direction of the effect is opposite of that for exercise. Songs that are NOT suited for running are more popular than songs that are suited for running. Now: good_for_yoga/stretching.
+
+yogastretching_avg = df.groupby('good_for_yoga/stretching')['popularity'].agg(['mean', 'count'])
+print(yogastretching_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_yoga/stretching', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Yoga/Stretching', 'Running'])
+plt.title('Popularity by Yoga/Stretching Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+yogastretching = df[df['good_for_yoga/stretching'] == 1]['popularity']
+non_yogastretching = df[df['good_for_yoga/stretching'] == 0]['popularity']
+
+t_stat, p_val = ttest_ind(yogastretching, non_yogastretching, equal_var=False)
+print(f"T-test p-value: {p_val:.4f}")
+
+#Another significant effect! Looks like pop songs that are NOT suited for yoga/stretching are more popular. How about good_for_driving?
+
+driving_avg = df.groupby('good_for_driving')['popularity'].agg(['mean', 'count'])
+print(driving_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_driving', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Driving', 'Driving'])
+plt.title('Popularity by Driving Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+driving = df[df['good_for_driving'] == 1]['popularity']
+non_driving = df[df['good_for_driving'] == 0]['popularity']
+
+t_stat, p_val = ttest_ind(driving, non_driving, equal_var=False)
+print(f"T-test p-value: {p_val:.4f}")
+
+#Songs that are good for driving are significantly more popular than songs that aren't. Now, good_for_social_gatherings, which I expect to have similar results to good_for_party.
+
+socialgatherings_avg = df.groupby('good_for_social_gatherings')['popularity'].agg(['mean', 'count'])
+print(socialgatherings_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_social_gatherings', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Social Gatherings', 'Social Gatherings'])
+plt.title('Popularity by Social Gathering Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+socialgatherings = df[df['good_for_social_gatherings'] == 1]['popularity']
+non_socialgatherings = df[df['good_for_social_gatherings'] == 0]['popularity']
+
+t_stat, p_val = ttest_ind(socialgatherings, non_socialgatherings, equal_var=False)
+print(f"T-test p-value: {p_val:.4f}")
+
+Indeed, the results were significant, just like that for good_for_party. Pop songs that are good for social gatherings are more popular. Now, for the last category: good_for_morning_routine.
+
+morningroutine_avg = df.groupby('good_for_morning_routine')['popularity'].agg(['mean', 'count'])
+print(morningroutine_avg)
+
+#boxplot
+plt.figure(figsize=(6, 4))
+sns.boxplot(x='good_for_morning_routine', y='popularity', data=df)
+plt.xticks([0, 1], ['Not Morning Routine', 'Morning Routine'])
+plt.title('Popularity by Morning Routine Suitability')
+plt.ylabel('Popularity')
+plt.tight_layout()
+plt.show()
+
+#No significant effect here. Finally, let's see what topics are the most popular.
+
+topic_avg = df.groupby('topic')['popularity'].agg(['mean', 'count']).sort_values('mean', ascending=False)
+print(topic_avg)
+
+#Overall, here are the categories that were significantly popular: suited for parties, not suited for work/study, not suited for relaxation/meditation, not suited for running, not suited for yoga/stretching, suited for driving, and suited for social gatherings.
