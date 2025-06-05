@@ -1,0 +1,144 @@
+	
+pip install transformers
+pip install transformers torch
+pip install transformers datasets
+
+import random
+import torch
+import re
+import pandas as pd
+
+#read dataset with topic modeling column added
+df = pd.read_pickle("pop_songs_with_topics.pkl")
+
+#In the previous notebook, we found out that the topics that were most positively correlated with popularity are SPIRITUAL_EXISTENTIAL and POP_PERSONA. After I create my generator, I'm going to try to generate a song about the topic POP_PERSONA.
+
+#prepare dataframe
+df["topic_keywords"] = df["topic_keywords"].apply(lambda x: " ".join(eval(x)) if isinstance(x, str) and x.startswith("[") else str(x))
+
+df["prompt"] = "Generate lyrics using these concepts: " + df["topic_keywords"] + "\nLyrics:"
+df["completion"] = df["text"]
+
+from datasets import Dataset
+
+dataset = Dataset.from_pandas(df[["prompt", "completion"]])
+from transformers import GPT2Tokenizer
+
+tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+tokenizer.pad_token = tokenizer.eos_token
+
+def tokenize(example):
+    encoded = tokenizer(
+        example["prompt"] + " " + example["completion"],
+        truncation=True,
+        padding="max_length",
+        max_length=512
+    )
+    encoded["labels"] = encoded["input_ids"].copy()  # Necessary for loss computation
+    return encoded
+
+tokenized_dataset = dataset.map(tokenize, remove_columns=["prompt", "completion"])
+
+from transformers import GPT2LMHeadModel, Trainer, TrainingArguments
+
+model = GPT2LMHeadModel.from_pretrained("gpt2")
+
+training_args = TrainingArguments(
+    output_dir="./lyrics-gpt2",
+    per_device_train_batch_size=2,
+    num_train_epochs=3,
+    logging_dir="./logs",
+    save_steps=500,
+    logging_steps=100,
+    save_total_limit=2,
+    fp16=True,
+)
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_dataset,
+    tokenizer=tokenizer,
+)
+
+trainer.train()
+
+TrainOutput(global_step=10572, training_loss=1.53549231645784, metrics={'train_runtime': 2088.9073, 'train_samples_per_second': 10.121, 'train_steps_per_second': 5.061, 'total_flos': 5523974848512000.0, 'train_loss': 1.53549231645784, 'epoch': 3.0})
+trainer.save_model("./lyrics-gpt2")
+tokenizer.save_pretrained("./lyrics-gpt2")
+
+def generate_lyrics(model, tokenizer, keywords, max_length=150):
+    prompt = f"Generate lyrics using these concepts: {keywords}\nLyrics:"
+    inputs = tokenizer(prompt, return_tensors="pt")
+    outputs = model.generate(
+        **inputs,
+        max_length=max_length,
+        do_sample=True,
+        top_k=50,
+        top_p=0.95,
+        temperature=0.9,
+        pad_token_id=tokenizer.eos_token_id
+    )
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+#load the fine-tuned model (after training)
+model_path = "./lyrics-gpt2"
+model = GPT2LMHeadModel.from_pretrained(model_path)
+tokenizer = GPT2Tokenizer.from_pretrained(model_path)
+
+#call the model using the topic_keywords column generated in the last notebook
+lyrics = generate_lyrics(
+    model,
+    tokenizer,
+    keywords="bop gimme wine bubble celebrity lady pink treat watching hearted looking ruin sip perhaps knock drunk timeless vogue dumb nobody lion fine drinkin ti village faster directions color animal ahhh feed maintain chains blaine tonight bed watchin animals scream fit bodies dreams seeing zone ok bound summer sis shopping land",
+    max_length=300
+)
+
+print(lyrics)
+
+#Now I'll create a new function to rewrite lyrics from one genre to another. I'm going to take a chunk of lyrics from a song that's associated with a less popular topic and translate it into lyrics associated with a more popular topic.
+
+def rewrite_lyrics(model, tokenizer, chunk, new_topic_keywords, max_length=150):
+    prompt = (
+        f"Rewrite the following lyrics using these concepts: {new_topic_keywords}\n"
+        f"Lyrics: {chunk}\nRewritten Lyrics:"
+    )
+    inputs = tokenizer(prompt, return_tensors="pt")
+    outputs = model.generate(
+        **inputs,
+        max_length=max_length,
+        do_sample=True,
+        top_k=50,
+        top_p=0.95,
+        temperature=0.9,
+        repetition_penalty=1.5,  #to prevent repetition
+        pad_token_id=tokenizer.eos_token_id
+    )
+    full_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    #extract just the part after 'Rewritten Lyrics:'
+    if "Rewritten Lyrics:" in full_output:
+        rewritten = full_output.split("Rewritten Lyrics:")[1].strip()
+    else:
+        rewritten = full_output
+
+    return rewritten
+#get a ROMANTIC_PASSION song (least correlated with high popularity) and sample a chunk
+sample_song = df[df['topic'] == 'ROMANTIC_PASSION'].sample(1).iloc[0]
+lyrics = sample_song['text']
+
+#extract a random chunk
+import random
+tokens = lyrics.split()
+start = random.randint(0, max(0, len(tokens) - 25))
+chunk = " ".join(tokens[start:start+25])
+
+#use topic_keywords from another (more popular) topic
+new_topic = "EMOTIONAL_CONFLICT"
+example_keywords = df[df['topic'] == new_topic]['topic_keywords'].sample(1).iloc[0]
+
+#rewrite it
+rewritten = rewrite_lyrics(model, tokenizer, chunk, example_keywords)
+print("Original chunk:\n", chunk)
+print("\nRewritten as EMOTIONAL_CONFLICT:\n", rewritten)
